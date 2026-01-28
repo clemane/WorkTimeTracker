@@ -1,5 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from "vue";
+import { 
+  Calendar, 
+  History, 
+  User as UserIcon, 
+  LogOut, 
+  Clock,
+  AlertCircle,
+  Loader2
+} from "lucide-vue-next";
 import WeekForm from "./components/WeekForm.vue";
 import SessionsTable from "./components/SessionsTable.vue";
 import LoginCard from "./components/LoginCard.vue";
@@ -90,171 +99,144 @@ function logout() {
 </script>
 
 <template>
-  <div class="page">
-    <header class="header">
-      <h1 class="logo">Suivi de temps</h1>
-      <nav v-if="currentUser" class="tabs">
-        <button
-          type="button"
-          class="tab"
-          :class="{ active: activeTab === 'week' }"
-          @click="activeTab = 'week'"
-        >
-          Semaine
-        </button>
-        <button
-          type="button"
-          class="tab"
-          :class="{ active: activeTab === 'history' }"
-          @click="activeTab = 'history'"
-        >
-          Historique
-        </button>
-        <button
-          type="button"
-          class="tab"
-          :class="{ active: activeTab === 'profile' }"
-          @click="activeTab = 'profile'"
-        >
-          Profil
-        </button>
-      </nav>
-      <div v-else class="tabs"></div>
-      <div v-if="currentUser" class="user-info">
-        <span class="user-name">{{ currentUser.username }}</span>
-        <button type="button" class="logout" @click="logout">Déconnexion</button>
+  <div class="min-h-screen bg-black text-white selection:bg-primary/30">
+    <!-- Header -->
+    <header class="sticky top-0 z-50 border-b border-neutral-900 bg-black/50 backdrop-blur-xl">
+      <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center gap-2 group cursor-default">
+          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary group-hover:scale-110 transition-transform">
+            <Clock class="h-5 w-5 text-white" />
+          </div>
+          <span class="text-lg font-bold tracking-tight">Antigravity</span>
+        </div>
+
+        <nav v-if="currentUser" class="hidden md:flex items-center gap-1 bg-neutral-900/50 p-1 rounded-xl border border-neutral-800">
+          <button
+            v-for="tab in ([
+              { id: 'week', label: 'Semaine', icon: Calendar },
+              { id: 'history', label: 'Historique', icon: History },
+              { id: 'profile', label: 'Profil', icon: UserIcon },
+            ] as const)"
+            :key="tab.id"
+            @click="activeTab = tab.id"
+            class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all"
+            :class="activeTab === tab.id 
+              ? 'bg-neutral-800 text-white shadow-sm' 
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'"
+          >
+            <component :is="tab.icon" class="h-4 w-4" />
+            {{ tab.label }}
+          </button>
+        </nav>
+
+        <div v-if="currentUser" class="flex items-center gap-4">
+          <div class="hidden sm:flex flex-col items-end mr-2">
+            <span class="text-sm font-medium">{{ currentUser.username }}</span>
+            <span class="text-xs text-neutral-500 italic uppercase tracking-widest">Utilisateur</span>
+          </div>
+          <button 
+            @click="logout"
+            class="group flex h-10 w-10 items-center justify-center rounded-full border border-neutral-800 hover:bg-neutral-900 transition-colors"
+            title="Déconnexion"
+          >
+            <LogOut class="h-4 w-4 text-neutral-400 group-hover:text-white transition-colors" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Mobile Nav -->
+      <div v-if="currentUser" class="flex md:hidden border-t border-neutral-900 px-4 py-2 overflow-x-auto gap-2 scrollbar-hide">
+         <button
+            v-for="tab in ([
+              { id: 'week', label: 'Semaine', icon: Calendar },
+              { id: 'history', label: 'Historique', icon: History },
+              { id: 'profile', label: 'Profil', icon: UserIcon },
+            ] as const)"
+            :key="tab.id"
+            @click="activeTab = tab.id"
+            class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap"
+            :class="activeTab === tab.id 
+              ? 'bg-neutral-800 text-white shadow-sm' 
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'"
+          >
+            <component :is="tab.icon" class="h-4 w-4" />
+            {{ tab.label }}
+          </button>
       </div>
     </header>
 
-    <main class="main">
-      <LoginCard v-if="!currentUser" @logged-in="onLoggedIn" />
+    <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div v-if="!currentUser" class="flex items-center justify-center py-20">
+        <LoginCard @logged-in="onLoggedIn" />
+      </div>
 
       <template v-else>
-        <div v-if="error" class="banner error">{{ error }}</div>
-        <div v-if="loading" class="banner info">Chargement…</div>
+        <!-- Status Banners -->
+        <div v-if="error" 
+          v-motion
+          :initial="{ opacity: 0, y: -20 }"
+          :enter="{ opacity: 1, y: 0 }"
+          class="mb-6 flex items-center gap-3 rounded-xl border border-red-900/50 bg-red-900/10 p-4 text-red-400"
+        >
+          <AlertCircle class="h-5 w-5" />
+          <p class="text-sm font-medium">{{ error }}</p>
+        </div>
 
-        <WeekForm
-          v-show="activeTab === 'week'"
-          :key="weekStart"
-          :initial-monday="weekStart"
-          :existing-sessions="weekSessions"
-          @saved="onWeekSaved"
-          @update:week-start="onWeekChange"
-        />
+        <div v-if="loading" 
+          v-motion
+          :initial="{ opacity: 0 }"
+          :enter="{ opacity: 1 }"
+          class="mb-6 flex items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 text-neutral-400"
+        >
+          <Loader2 class="h-5 w-5 animate-spin" />
+          <p class="text-sm font-medium">Chargement des données...</p>
+        </div>
 
-        <SessionsTable
-          v-show="activeTab === 'history'"
-          :sessions="sessions"
-          @delete-period="loadSessions"
-        />
+        <!-- Content Area -->
+        <div 
+          v-motion
+          :initial="{ opacity: 0, y: 20 }"
+          :enter="{ opacity: 1, y: 0 }"
+          :key="activeTab"
+        >
+          <WeekForm
+            v-if="activeTab === 'week'"
+            :key="weekStart"
+            :initial-monday="weekStart"
+            :existing-sessions="weekSessions"
+            @saved="onWeekSaved"
+            @update:week-start="onWeekChange"
+          />
 
-        <ProfileCard
-          v-if="currentUser"
-          v-show="activeTab === 'profile'"
-          :user="currentUser"
-        />
+          <SessionsTable
+            v-if="activeTab === 'history'"
+            :sessions="sessions"
+            @delete-period="loadSessions"
+          />
+
+          <ProfileCard
+            v-if="activeTab === 'profile' && currentUser"
+            :user="currentUser"
+          />
+        </div>
       </template>
     </main>
+
+    <!-- Footer -->
+    <footer class="mt-auto border-t border-neutral-900 py-8">
+      <div class="mx-auto max-w-7xl px-4 text-center text-sm text-neutral-600 sm:px-6 lg:px-8">
+        <p>© 2026 Antigravity. Minimalist Work Time Tracker.</p>
+      </div>
+    </footer>
   </div>
 </template>
 
-<style scoped>
-.page {
-  min-height: 100vh;
-  background: var(--bg);
-  color: var(--text);
+<style>
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
-
-.header {
-  background: var(--bg-soft);
-  border-bottom: 1px solid var(--border);
-  padding: var(--space-md) var(--space-lg);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-md);
-}
-
-.logo {
-  margin: 0;
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.02em;
-}
-
-.tabs {
-  display: flex;
-  gap: 2px;
-  background: var(--bg);
-  padding: 4px;
-  border-radius: var(--radius);
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-  color: var(--muted);
-}
-
-.user-name {
-  font-weight: 500;
-}
-
-.logout {
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--muted);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.tab {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  font-weight: 500;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: color 0.15s, background 0.15s;
-}
-
-.tab:hover {
-  color: var(--text);
-}
-
-.tab.active {
-  background: var(--primary);
-  color: white;
-}
-
-.main {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: var(--space-lg);
-}
-
-.banner {
-  padding: 0.6rem 1rem;
-  border-radius: var(--radius);
-  margin-bottom: var(--space-md);
-  font-size: 0.9rem;
-}
-
-.banner.error {
-  background: var(--error-bg);
-  color: var(--error);
-}
-
-.banner.info {
-  background: var(--border);
-  color: var(--muted);
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 </style>

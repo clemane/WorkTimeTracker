@@ -1,6 +1,7 @@
 {
   "name": "worktime-frontend",
   "version": "1.0.0",
+  "type": "module",
   "private": true,
   "scripts": {
     "dev": "vite",
@@ -8,10 +9,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@vueuse/core": "^14.1.0",
+    "@vueuse/motion": "^3.0.3",
+    "lucide-vue-next": "^0.563.0",
     "vue": "^3.5.12"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@tailwindcss/vite": "^4.1.18",
     "@vitejs/plugin-vue": "^5.1.4",
+    "autoprefixer": "^10.4.23",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
     "vue-tsc": "^2.1.10"

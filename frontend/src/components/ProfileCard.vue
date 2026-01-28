@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { changePassword, type User } from "../services/api";
+import { 
+  User as UserIcon, 
+  ShieldCheck, 
+  Key, 
+  CheckCircle2, 
+  AlertCircle,
+  Loader2,
+  Lock
+} from "lucide-vue-next";
 
 const props = defineProps<{
   user: User;
@@ -45,6 +54,7 @@ async function onSubmit() {
     currentPassword.value = "";
     newPassword.value = "";
     confirmPassword.value = "";
+    setTimeout(() => { success.value = false; }, 5000);
   } catch (e: any) {
     error.value = e.message ?? "Erreur lors du changement de mot de passe.";
   } finally {
@@ -54,133 +64,100 @@ async function onSubmit() {
 </script>
 
 <template>
-  <section class="profile-card">
-    <h2>Mon profil</h2>
-    <p class="hint">Compte : <strong>{{ user.username }}</strong></p>
+  <div class="max-w-2xl mx-auto space-y-8">
+    <div class="flex items-center gap-4">
+      <div class="h-16 w-16 rounded-3xl bg-primary/10 flex items-center justify-center text-primary">
+        <UserIcon class="h-8 w-8" />
+      </div>
+      <div>
+        <h1 class="text-3xl font-bold tracking-tight">Mon Profil</h1>
+        <p class="text-neutral-400 mt-1">Gérez vos informations de compte et votre sécurité.</p>
+      </div>
+    </div>
 
-    <form class="form" @submit.prevent="onSubmit">
-      <div class="field">
-        <label>Mot de passe actuel</label>
-        <input
-          v-model="currentPassword"
-          type="password"
-          autocomplete="current-password"
-          required
-        />
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <!-- Account Info -->
+      <div class="bg-neutral-900/40 border border-neutral-800 rounded-3xl p-8 space-y-6 backdrop-blur-sm">
+        <div class="flex items-center gap-3 text-neutral-400">
+          <ShieldCheck class="h-5 w-5" />
+          <h2 class="text-sm font-bold uppercase tracking-widest">Informations du compte</h2>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="text-[10px] font-bold uppercase text-neutral-500 block mb-1">Identifiant</label>
+            <p class="text-lg font-medium text-white">{{ user.username }}</p>
+          </div>
+          <div>
+            <label class="text-[10px] font-bold uppercase text-neutral-500 block mb-1">Rôle</label>
+            <p class="inline-flex items-center px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
+              Utilisateur Standard
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div class="field">
-        <label>Nouveau mot de passe</label>
-        <input
-          v-model="newPassword"
-          type="password"
-          autocomplete="new-password"
-          required
-          minlength="6"
-        />
+      <!-- Security / Password Change -->
+      <div class="bg-neutral-900/40 border border-neutral-800 rounded-3xl p-8 space-y-6 backdrop-blur-sm">
+        <div class="flex items-center gap-3 text-neutral-400">
+          <Lock class="h-5 w-5" />
+          <h2 class="text-sm font-bold uppercase tracking-widest">Sécurité</h2>
+        </div>
+
+        <form @submit.prevent="onSubmit" class="space-y-4">
+          <div class="space-y-2">
+            <label class="text-[10px] font-bold uppercase text-neutral-500 ml-1">Mot de passe actuel</label>
+            <input 
+              v-model="currentPassword" 
+              type="password" 
+              required
+              class="w-full bg-neutral-950 border border-neutral-800 rounded-2xl px-4 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-all"
+            />
+          </div>
+
+          <div class="space-y-2">
+            <label class="text-[10px] font-bold uppercase text-neutral-500 ml-1">Nouveau mot de passe</label>
+            <input 
+              v-model="newPassword" 
+              type="password" 
+              required
+              minlength="6"
+              class="w-full bg-neutral-950 border border-neutral-800 rounded-2xl px-4 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-all"
+            />
+          </div>
+
+          <div class="space-y-2">
+            <label class="text-[10px] font-bold uppercase text-neutral-500 ml-1">Confirmer</label>
+            <input 
+              v-model="confirmPassword" 
+              type="password" 
+              required
+              minlength="6"
+              class="w-full bg-neutral-950 border border-neutral-800 rounded-2xl px-4 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-all"
+            />
+          </div>
+
+          <div v-if="error" class="flex items-center gap-2 text-xs font-medium text-red-400 py-1">
+            <AlertCircle class="h-3 w-3" />
+            {{ error }}
+          </div>
+
+          <div v-if="success" class="flex items-center gap-2 text-xs font-medium text-green-400 py-1">
+            <CheckCircle2 class="h-3 w-3" />
+            Mot de passe mis à jour avec succès.
+          </div>
+
+          <button 
+            type="submit" 
+            :disabled="loading || !canSubmit"
+            class="w-full flex items-center justify-center gap-2 bg-white text-black font-bold py-3 rounded-2xl transition-all hover:bg-neutral-200 active:scale-95 disabled:opacity-50 disabled:hover:bg-white"
+          >
+            <Loader2 v-if="loading" class="h-4 w-4 animate-spin" />
+            <Key v-else class="h-4 w-4" />
+            {{ loading ? 'Changement...' : 'Mettre à jour' }}
+          </button>
+        </form>
       </div>
-
-      <div class="field">
-        <label>Confirmer le nouveau mot de passe</label>
-        <input
-          v-model="confirmPassword"
-          type="password"
-          autocomplete="new-password"
-          required
-          minlength="6"
-        />
-      </div>
-
-      <button class="btn-primary" type="submit" :disabled="loading || !canSubmit">
-        {{ loading ? "Chargement..." : "Changer le mot de passe" }}
-      </button>
-
-      <p v-if="error" class="error">{{ error }}</p>
-      <p v-if="success" class="success">Mot de passe mis à jour.</p>
-    </form>
-  </section>
+    </div>
+  </div>
 </template>
-
-<style scoped>
-.profile-card {
-  max-width: 420px;
-  padding: 1.5rem;
-  background: var(--card-bg);
-  border-radius: 16px;
-  box-shadow: var(--shadow);
-  border: 1px solid var(--border);
-}
-
-h2 {
-  margin: 0 0 0.5rem;
-}
-
-.hint {
-  margin: 0 0 1.25rem;
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.hint strong {
-  color: var(--text);
-}
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.9rem;
-}
-
-label {
-  color: var(--muted);
-}
-
-input {
-  padding: 0.5rem 0.6rem;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
-}
-
-.btn-primary {
-  margin-top: 0.5rem;
-  padding: 0.6rem 1.25rem;
-  border-radius: 10px;
-  border: none;
-  background: var(--primary);
-  color: #fff;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.error {
-  margin-top: 0.5rem;
-  padding: 0.4rem 0.6rem;
-  background: var(--error-bg);
-  color: var(--error);
-  border-radius: 8px;
-  font-size: 0.85rem;
-}
-
-.success {
-  margin-top: 0.5rem;
-  padding: 0.4rem 0.6rem;
-  background: rgba(34, 197, 94, 0.2);
-  color: #22c55e;
-  border-radius: 8px;
-  font-size: 0.85rem;
-}
-</style>
