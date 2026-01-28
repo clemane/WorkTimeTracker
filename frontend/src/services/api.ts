@@ -111,6 +111,23 @@ export async function deleteSession(id: number): Promise<void> {
   }
 }
 
+export async function deleteSessionsByPeriod(
+  monday: string,
+  userId: number
+): Promise<{ deleted: number }> {
+  const url = new URL(baseUrl + "/sessions/period", window.location.origin);
+  url.searchParams.set("monday", monday);
+  url.searchParams.set("userId", String(userId));
+  const res = await fetch(url.toString(), { method: "DELETE" });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(
+      (data as { error?: string }).error ?? "Erreur lors de la suppression de la période"
+    );
+  }
+  return res.json();
+}
+
 export type SessionPayload = Omit<WorkSession, "id" | "created_at" | "updated_at">;
 
 export async function saveSessionsBulk(

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { WorkSession } from "../services/api";
+import { deleteSessionsByPeriod } from "../services/api";
 import { computeNetMinutes, minutesToHHMM } from "../utils/time";
 import { getMondayOfWeek, addDays, formatDayShort } from "../utils/week";
 
@@ -8,7 +9,8 @@ const props = defineProps<{
   sessions: WorkSession[];
 }>();
 
-const emit = defineEmits<{}>();
+const emit = defineEmits<{ "delete-period": [] }>();
+const deleting = ref<string | null>(null);
 
 const from = ref<string>("");
 const to = ref<string>("");
@@ -102,6 +104,22 @@ function downloadPdfForPeriod(startMonday: string) {
   )}&userId=${encodeURIComponent(String(user.id))}`;
   window.open(url, "_blank");
 }
+
+async function deletePeriod(g: PeriodGroup) {
+  const rawUser = window.localStorage.getItem("worktime:user");
+  const user = rawUser ? (JSON.parse(rawUser) as { id: number }) : null;
+  if (!user?.id) return;
+  if (!window.confirm("Supprimer toute cette période (2 semaines) ? Cette action est irréversible.")) return;
+  deleting.value = g.startMonday;
+  try {
+    await deleteSessionsByPeriod(g.startMonday, user.id);
+    emit("delete-period");
+  } catch (e) {
+    alert(e instanceof Error ? e.message : "Erreur lors de la suppression.");
+  } finally {
+    deleting.value = null;
+  }
+}
 </script>
 
 <template>
@@ -126,6 +144,7 @@ function downloadPdfForPeriod(startMonday: string) {
             <th>Période</th>
             <th>Jours saisis</th>
             <th>Total net / PDF</th>
+            <th class="th-actions"></th>
           </tr>
         </thead>
         <tbody>
@@ -147,6 +166,17 @@ function downloadPdfForPeriod(startMonday: string) {
                 @click.stop="downloadPdfForPeriod(g.startMonday)"
               >
                 PDF
+              </button>
+            </td>
+            <td class="actions-cell">
+              <button
+                type="button"
+                class="btn-delete"
+                title="Supprimer cette période"
+                :disabled="deleting === g.startMonday"
+                @click.stop="deletePeriod(g)"
+              >
+                {{ deleting === g.startMonday ? "…" : "Supprimer" }}
               </button>
             </td>
           </tr>
@@ -257,6 +287,37 @@ function downloadPdfForPeriod(startMonday: string) {
 
 .btn-link:hover {
   text-decoration: underline;
+}
+
+.th-actions {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.actions-cell {
+  padding: 0.5rem;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.btn-delete {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.btn-delete:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: var(--muted);
+}
+
+.btn-delete:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .empty {

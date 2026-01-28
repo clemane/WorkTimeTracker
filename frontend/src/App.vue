@@ -145,6 +145,7 @@ function logout() {
         <SessionsTable
           v-show="activeTab === 'history'"
           :sessions="sessions"
+          @delete-period="loadSessions"
         />
 
         <ProfileCard

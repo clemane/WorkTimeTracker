@@ -207,6 +207,23 @@ router.delete("/all", (_req: Request, res: Response) => {
   res.status(200).json({ deleted: info.changes ?? 0 });
 });
 
+// DELETE /api/sessions/period?monday=YYYY-MM-DD&userId=N — supprime toute la période (2 semaines)
+router.delete("/period", (req: Request, res: Response) => {
+  const { monday, userId } = req.query as { monday?: string; userId?: string };
+  const userIdNum = Number(userId);
+  if (!monday || !isValidDate(monday) || !userId || !Number.isInteger(userIdNum)) {
+    return res.status(400).json({ error: "monday (YYYY-MM-DD) et userId requis" });
+  }
+  const endDate = new Date(monday + "T12:00:00");
+  endDate.setDate(endDate.getDate() + 13);
+  const endStr = endDate.toISOString().slice(0, 10);
+  const stmt = db.prepare(
+    "DELETE FROM work_sessions WHERE user_id = ? AND date >= ? AND date <= ?"
+  );
+  const info = stmt.run(userIdNum, monday, endStr);
+  res.status(200).json({ deleted: info.changes ?? 0 });
+});
+
 // DELETE /api/sessions/:id
 router.delete("/:id", (req: Request, res: Response) => {
   const id = Number(req.params.id);
