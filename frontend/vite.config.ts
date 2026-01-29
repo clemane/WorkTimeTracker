@@ -13,6 +13,12 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    hmr: {
+        overlay: false
+    }
   },
+  optimizeDeps: {
+    force: true // Force dependency pre-bundling
+  }
 });
 

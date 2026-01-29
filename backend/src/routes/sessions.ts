@@ -160,23 +160,73 @@ router.post("/bulk", (req: Request, res: Response) => {
     return res.status(400).json({ error: "userId requis" });
   }
 
+  // Get user profile to check working days (or just check if we really want to insert?)
+  // Actually, the frontend sends "rows". If user has filtered some days, they are NOT in the rows sent?
+  // Let's check frontend WeekForm.vue.
+  // Wait, frontend sends ALL rows from rows.value.
+  // But rows.value contains EVERYTHING if unfiltered in JS, but filtered in template?
+  // No, `rows` ref contains all days of the period.
+  // `weeks` computed filters them for display.
+  // So `saveWeek` sends ALL days including Saturday/Sunday even if not worked.
+  
+  // We should fetch the user to know their working days preference and ONLY save working days?
+  // Or better: update the frontend to only send working days.
+  // But let's look at the backend logic first.
+  
   const now = new Date().toISOString();
   const results: WorkSession[] = [];
 
+  // We fetch user settings to filter out non-working days if necessary?
+  // Or simply trust the payload?
+  // If the user UNCHECKS a day in their profile, they don't want it to be saved.
+  // But `saveSessionsBulk` in frontend sends everything.
+  
+  const user = db.prepare("SELECT working_days FROM users WHERE id = ?").get(userIdNum) as { working_days: string } | undefined;
+  let workingDays = [0, 1, 2, 3, 4]; // Default
+  if (user && user.working_days) {
+    try {
+      workingDays = JSON.parse(user.working_days);
+    } catch {}
+  }
+
+  // Helper to get day index 0-6 (Mon-Sun) from date string
+  const getDayIndex = (dStr: string) => {
+    const d = new Date(dStr + "T12:00:00");
+    const day = d.getDay(); // 0=Sun
+    return day === 0 ? 6 : day - 1; // 0=Mon, 6=Sun
+  };
+
   for (const s of body.sessions) {
     if (!s.date || !isValidDate(s.date)) continue;
+    
+    // Check if this day is a working day for the user
+    // If not, we should perhaps DELETE it if it exists, or just NOT insert/update it?
+    // If we just skip it, existing Saturday sessions remain.
+    // If we want to "clean" the week, we should probably delete non-working days if they exist.
+    
+    const dayIdx = getDayIndex(s.date);
+    const isWorkingDay = workingDays.includes(dayIdx);
+    
+    const existing = db
+      .prepare(
+        "SELECT id FROM work_sessions WHERE date = ? AND user_id = ?"
+      )
+      .get(s.date, userIdNum) as { id: number } | undefined;
+
+    if (!isWorkingDay) {
+        // If it's not a working day but exists in DB, we should delete it to keep history clean
+        if (existing) {
+            db.prepare("DELETE FROM work_sessions WHERE id = ?").run(existing.id);
+        }
+        continue; // Skip saving/updating
+    }
+
     if (!s.arrival_time || !isValidTime(s.arrival_time)) continue;
     if (!s.departure_time || !isValidTime(s.departure_time)) continue;
 
     const breakMinutes = s.break_minutes ?? 0;
     const remoteMinutes = s.remote_minutes ?? null;
     const notes = s.notes ?? null;
-
-    const existing = db
-      .prepare(
-        "SELECT id FROM work_sessions WHERE date = ? AND user_id = ?"
-      )
-      .get(s.date, userIdNum) as { id: number } | undefined;
 
     if (existing) {
       db.prepare(`

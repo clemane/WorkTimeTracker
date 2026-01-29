@@ -14,6 +14,10 @@ export interface WorkSession {
 export interface User {
   id: number;
   username: string;
+  timesheet_mode?: "weekly" | "bi-weekly" | "monthly";
+  working_days?: number[]; // [0, 1, 2, 3, 4] for Mon-Fri
+  default_arrival?: string;
+  default_departure?: string;
 }
 
 const baseUrl = "/api";
@@ -28,6 +32,19 @@ export async function login(username: string, password: string): Promise<User> {
     throw new Error("Identifiants invalides");
   }
   return res.json();
+}
+
+export async function updateProfile(userId: number, data: Partial<User>): Promise<void> {
+  const res = await fetch(baseUrl + "/auth/profile", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: userId, ...data }),
+  });
+  if (!res.ok) throw new Error("Erreur lors de la mise à jour du profil");
+}
+
+export async function updateProfileMode(userId: number, mode: string): Promise<void> {
+  return updateProfile(userId, { timesheet_mode: mode as any });
 }
 
 export async function changePassword(

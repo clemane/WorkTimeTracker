@@ -1,35 +1,103 @@
 @import "tailwindcss";
 
-:root {
-  --background: 0 0% 3.9%;
-  --foreground: 0 0% 98%;
-  --muted: 0 0% 63.9%;
-  --muted-foreground: 0 0% 45.1%;
-  --border: 0 0% 14.9%;
-  --primary: 221.2 83.2% 53.3%;
-  --primary-foreground: 210 40% 98%;
-}
-
 @theme {
-  --color-primary: #3b82f6;
-  --color-primary-foreground: #ffffff;
-  --color-background: #0a0a0a;
-  --color-foreground: #ffffff;
-  --color-muted: #737373;
-  --color-border: #262626;
+  --color-canvas: var(--bg-canvas);
+  --color-surface: var(--bg-surface);
+  --color-surface-hover: var(--bg-surface-hover);
+  --color-border: var(--border-color);
+  
+  --color-text-body: var(--text-body);
+  --color-text-muted: var(--text-muted);
+  
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-primary-text: var(--color-primary-text);
+  
+  --color-danger: var(--color-danger);
   
   --font-sans: "Inter", "ui-sans-serif", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "Noto Sans", "sans-serif";
 }
 
+/* Default Theme (Dark) directly on :root */
+:root {
+  --bg-canvas: #000000;
+  --bg-surface: #111111;
+  --bg-surface-hover: #1a1a1a;
+  --border-color: #262626;
+  
+  --text-body: #ffffff;
+  --text-muted: #a3a3a3;
+  
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-primary-text: #ffffff;
+  
+  --color-danger: #ef4444;
+}
+
+/* Specific themes applied via data-theme attribute on root/body */
+[data-theme="light"] {
+  --bg-canvas: #f9fafb;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #f3f4f6;
+  --border-color: #d1d5db;
+  
+  --text-body: #111827;
+  --text-muted: #4b5563;
+  
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-text: #ffffff;
+  
+  --color-danger: #dc2626;
+}
+
+[data-theme="matrix"] {
+  --bg-canvas: #050505;
+  --bg-surface: #0a1f0a;
+  --bg-surface-hover: #0f2f0f;
+  --border-color: #1a4d1a;
+  
+  --text-body: #00ff00;
+  --text-muted: #008f00;
+  
+  --color-primary: #00ff00;
+  --color-primary-hover: #00cc00;
+  --color-primary-text: #000000;
+  
+  --color-danger: #ff0000;
+}
+
+[data-theme="midnight"] {
+  --bg-canvas: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-surface-hover: #334155;
+  --border-color: #334155;
+  
+  --text-body: #f8fafc;
+  --text-muted: #94a3b8;
+  
+  --color-primary: #8b5cf6;
+  --color-primary-hover: #7c3aed;
+  --color-primary-text: #ffffff;
+}
+
+/* Apply base styles */
 @layer base {
   body {
-    @apply bg-black text-white antialiased font-sans;
+    background-color: var(--bg-canvas);
+    color: var(--text-body);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
   }
 }
 
 .glass {
-  @apply bg-white/5 backdrop-blur-lg border border-white/10;
+  @apply bg-surface/80 backdrop-blur-lg border border-border;
 }
 
 .transition-soft {
@@ -46,7 +114,7 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-neutral-800 rounded-full hover:bg-neutral-700 transition-colors;
+  @apply bg-border rounded-full hover:bg-text-muted transition-colors;
 }
 
 /* Hide arrow for number inputs */

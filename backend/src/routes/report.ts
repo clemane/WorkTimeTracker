@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import puppeteer from "puppeteer";
+import ExcelJS from "exceljs";
 import { getDb, mapRowToWorkSession } from "../db";
 import { WorkSession } from "../types";
 
@@ -13,6 +14,14 @@ function isValidDate(dateStr: string): boolean {
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + "T12:00:00");
   d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function getMondayOfWeek(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00");
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
   return d.toISOString().slice(0, 10);
 }
 
@@ -43,10 +52,137 @@ function minutesToHHMM(total: number): string {
   return `${sign}${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
+// Helper to fetch periods for bulk export
+function getPeriodsInRange(start: string, end: string, mode: string): { start: string, end: string }[] {
+  const periods = [];
+  let current = start; // Should be a Monday ideally
+  
+  // Align start to Monday if needed
+  current = getMondayOfWeek(current);
+  
+  while (current <= end) {
+    let periodEnd = "";
+    if (mode === "weekly") {
+      periodEnd = addDays(current, 6);
+    } else if (mode === "monthly") {
+      const d = new Date(current + "T12:00:00");
+      const year = d.getFullYear();
+      const month = d.getMonth();
+      // End of month
+      const lastDayOfMonth = new Date(year, month + 1, 0, 12);
+      // We align to the Sunday of the last week of the month to match frontend visual
+      const endMonday = getMondayOfWeek(lastDayOfMonth.toISOString().slice(0, 10));
+      periodEnd = addDays(endMonday, 6);
+    } else {
+      // bi-weekly
+      periodEnd = addDays(current, 13);
+    }
+    
+    periods.push({ start: current, end: periodEnd });
+    
+    // Next start is periodEnd + 1 day
+    current = addDays(periodEnd, 1);
+  }
+  return periods;
+}
+
+// GET /api/report/bulk?from=...&to=...&mode=...&userId=...&format=...
+router.get("/bulk", async (req: Request, res: Response) => {
+  const { from, to, userId, mode, format } = req.query as { from?: string; to?: string; userId?: string; mode?: string; format?: string };
+  const userIdNum = Number(userId);
+
+  if (!from || !to || !userId || !Number.isInteger(userIdNum)) {
+    return res.status(400).json({ error: "Paramètres manquants (from, to, userId)" });
+  }
+
+  const effectiveMode = mode || "bi-weekly";
+  const periods = getPeriodsInRange(from, to, effectiveMode);
+
+  // If format is excel, generate workbook with multiple sheets
+  if (format === "excel") {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "Antigravity";
+      workbook.created = new Date();
+
+      for (const period of periods) {
+        const rows = db
+          .prepare(
+            "SELECT * FROM work_sessions WHERE date >= ? AND date <= ? AND user_id = ? ORDER BY date ASC"
+          )
+          .all(period.start, period.end, userIdNum)
+          .map(mapRowToWorkSession);
+        
+        const sessions = rows as WorkSession[];
+        if (sessions.length === 0) continue; // Skip empty periods? Or keep empty sheet? Let's skip for now or keep to show missing.
+        
+        // Sheet name: "26 janv - 08 fev"
+        const sheetName = `${formatHumanDate(period.start)} - ${formatHumanDate(period.end)}`.replace(/[\/\\?*\[\]]/g, "-").slice(0, 30);
+        const worksheet = workbook.addWorksheet(sheetName);
+
+        worksheet.columns = [
+          { header: 'Date', key: 'date', width: 15 },
+          { header: 'Arrivée', key: 'arrival', width: 10 },
+          { header: 'Départ', key: 'departure', width: 10 },
+          { header: 'Pause (min)', key: 'break', width: 12 },
+          { header: 'Distant (min)', key: 'remote', width: 12 },
+          { header: 'Total Net', key: 'net', width: 12 },
+          { header: 'Notes', key: 'notes', width: 30 },
+        ];
+
+        // Style header
+        worksheet.getRow(1).font = { bold: true };
+        
+        let totalPeriodMinutes = 0;
+
+        sessions.forEach(s => {
+          const net = computeNetMinutes(s);
+          totalPeriodMinutes += net;
+          worksheet.addRow({
+            date: formatHumanDate(s.date),
+            arrival: s.arrival_time,
+            departure: s.departure_time,
+            break: s.break_minutes,
+            remote: s.remote_minutes ?? 0,
+            net: minutesToHHMM(net),
+            notes: s.notes
+          });
+        });
+
+        // Add Total Row
+        worksheet.addRow({});
+        const totalRow = worksheet.addRow({
+          date: 'TOTAL PÉRIODE',
+          net: minutesToHHMM(totalPeriodMinutes)
+        });
+        totalRow.font = { bold: true };
+      }
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="export-heures-${from}-au-${to}.xlsx"`
+      );
+
+      await workbook.xlsx.write(res);
+      return res.end();
+
+    } catch (e) {
+      console.error(e);
+      return res.status(500).json({ error: "Erreur Excel" });
+    }
+  }
+
+  return res.status(400).json({ error: "Format non supporté pour l'export de masse (utilisez format=excel)" });
+});
+
 // GET /api/report?monday=YYYY-MM-DD
-// Génère un PDF pour 2 semaines (lun–ven x2) à partir du lundi passé.
+// Génère un PDF ou Excel pour la période demandée.
 router.get("/", async (req: Request, res: Response) => {
-  const { monday, userId } = req.query as { monday?: string; userId?: string };
+  const { monday, userId, mode, format } = req.query as { monday?: string; userId?: string; mode?: string; format?: string };
 
   const userIdNum = Number(userId);
 
@@ -60,8 +196,33 @@ router.get("/", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "userId requis" });
   }
 
-  const from = monday;
-  const to = addDays(monday, 13); // couvre 2 semaines complètes
+  // Fetch user details
+  const user = db.prepare("SELECT username FROM users WHERE id = ?").get(userIdNum) as { username: string } | undefined;
+  const userName = user ? user.username : "Inconnu";
+
+  let from = monday;
+  let to = "";
+  let periodLabel = "";
+
+  if (mode === "monthly") {
+    // Mode mensuel : du 1er au dernier jour du mois de la date donnée
+    const d = new Date(monday + "T12:00:00");
+    const year = d.getFullYear();
+    const month = d.getMonth();
+    const startOfMonth = new Date(year, month, 1, 12);
+    const endOfMonth = new Date(year, month + 1, 0, 12);
+    from = startOfMonth.toISOString().slice(0, 10);
+    to = endOfMonth.toISOString().slice(0, 10);
+    periodLabel = "Mois complet";
+  } else if (mode === "weekly") {
+    // Mode hebdomadaire : 1 semaine
+    to = addDays(from, 6); // lun -> dim
+    periodLabel = "Hebdomadaire";
+  } else {
+    // Par défaut : 2 semaines
+    to = addDays(from, 13);
+    periodLabel = "2 semaines";
+  }
 
   const rows = db
     .prepare(
@@ -77,21 +238,100 @@ router.get("/", async (req: Request, res: Response) => {
     0
   );
 
-  const week1From = from;
-  const week1To = addDays(from, 4);
-  const week2From = addDays(from, 7);
-  const week2To = addDays(from, 11);
+  // EXCEL GENERATION FOR SINGLE PERIOD
+  if (format === "excel") {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Feuille de temps");
 
+      worksheet.columns = [
+        { header: 'Date', key: 'date', width: 15 },
+        { header: 'Arrivée', key: 'arrival', width: 10 },
+        { header: 'Départ', key: 'departure', width: 10 },
+        { header: 'Pause', key: 'break', width: 10 },
+        { header: 'Distant', key: 'remote', width: 10 },
+        { header: 'Total', key: 'net', width: 10 },
+        { header: 'Notes', key: 'notes', width: 30 },
+      ];
+
+      worksheet.getRow(1).font = { bold: true };
+
+      sessions.forEach(s => {
+        worksheet.addRow({
+          date: formatHumanDate(s.date),
+          arrival: s.arrival_time,
+          departure: s.departure_time,
+          break: s.break_minutes,
+          remote: s.remote_minutes ?? 0,
+          net: minutesToHHMM(computeNetMinutes(s)),
+          notes: s.notes
+        });
+      });
+
+      worksheet.addRow({});
+      const totalRow = worksheet.addRow({
+        date: 'TOTAL',
+        net: minutesToHHMM(totalMinutes)
+      });
+      totalRow.font = { bold: true };
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="rapport-${from}.xlsx"`
+      );
+
+      await workbook.xlsx.write(res);
+      return res.end();
+    } catch (e) {
+      return res.status(500).json({ error: "Erreur Excel" });
+    }
+  }
+
+  // PDF GENERATION (Default)
   const inRange = (dateStr: string, start: string, end: string) =>
     dateStr >= start && dateStr <= end;
 
-  const week1Minutes = sessions
-    .filter((s) => inRange(s.date, week1From, week1To))
-    .reduce((acc, s) => acc + computeNetMinutes(s), 0);
+  // Génération dynamique des cartes de résumé par semaine
+  let summaryHtml = "";
+  
+  // On itère semaine par semaine depuis 'from' jusqu'à 'to'
+  let currentStart = from;
+  let weekIndex = 1;
+  
+  // On s'assure de ne pas boucler indéfiniment, max 6 semaines
+  while (currentStart <= to && weekIndex <= 6) {
+    // Fin de cette semaine (soit Dimanche, soit 'to' si 'to' est avant dimanche)
+    // Pour simplifier, on prend des blocs de 7 jours (Lun-Dim)
+    const currentEnd = addDays(currentStart, 6);
+    
+    // Si la fin de la semaine dépasse la fin de la période (ex: fin de mois), on peut couper
+    // Mais pour l'affichage, c'est souvent plus simple de garder des semaines entières ou de filtrer.
+    // Ici on filtre les sessions
+    
+    // Calcul des minutes pour cette tranche de 7 jours
+    const effectiveEnd = currentEnd > to ? to : currentEnd;
 
-  const week2Minutes = sessions
-    .filter((s) => inRange(s.date, week2From, week2To))
-    .reduce((acc, s) => acc + computeNetMinutes(s), 0);
+    const wMinutes = sessions
+      .filter((s) => inRange(s.date, currentStart, effectiveEnd))
+      .reduce((acc, s) => acc + computeNetMinutes(s), 0);
+      
+    // Adaptation du label si une seule semaine est demandée
+    const label = mode === 'weekly' ? 'Semaine' : `Semaine ${weekIndex}`;
+
+    summaryHtml += `
+        <div class="summary-card">
+          <div class="summary-title">${label}</div>
+          <div class="summary-range">Du ${formatHumanDate(currentStart)} au ${formatHumanDate(effectiveEnd)}</div>
+          <div class="summary-value">${minutesToHHMM(wMinutes)}</div>
+        </div>`;
+        
+    currentStart = addDays(currentStart, 7);
+    weekIndex++;
+  }
 
   const htmlRows = sessions
     .map((s) => {
@@ -135,9 +375,11 @@ router.get("/", async (req: Request, res: Response) => {
           display: flex;
           gap: 12px;
           margin-bottom: 18px;
+          flex-wrap: wrap;
         }
         .summary-card {
           flex: 1;
+          min-width: 120px;
           padding: 10px 12px;
           border-radius: 8px;
           border: 1px solid #e5e7eb;
@@ -190,25 +432,12 @@ router.get("/", async (req: Request, res: Response) => {
     </head>
     <body>
       <h1>Rapport d'heures</h1>
-      <div class="period">Salarié : Clément Lemane</div>
-      <div class="period">Période : du ${from} au ${to}</div>
+      <div class="period">Salarié : ${userName}</div>
+      <div class="period">Période : du ${formatHumanDate(from)} au ${formatHumanDate(to)}</div>
       <div class="summary">
-        <div class="summary-card">
-          <div class="summary-title">Semaine 1</div>
-          <div class="summary-range">Du ${formatHumanDate(
-            week1From
-          )} au ${formatHumanDate(week1To)}</div>
-          <div class="summary-value">${minutesToHHMM(week1Minutes)}</div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-title">Semaine 2</div>
-          <div class="summary-range">Du ${formatHumanDate(
-            week2From
-          )} au ${formatHumanDate(week2To)}</div>
-          <div class="summary-value">${minutesToHHMM(week2Minutes)}</div>
-        </div>
+        ${summaryHtml}
         <div class="summary-card total">
-          <div class="summary-title">Total 2 semaines</div>
+          <div class="summary-title">Total Période</div>
           <div class="summary-value">${minutesToHHMM(totalMinutes)}</div>
         </div>
       </div>
