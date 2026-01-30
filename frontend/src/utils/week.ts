@@ -45,6 +45,7 @@ export function formatDayShort(dateStr: string): string {
 }
 
 export function getPeriodRange(monday: string, mode: string = "bi-weekly"): { from: string; to: string } {
+  let from = monday;
   let to = "";
   if (mode === "weekly") {
     to = addDays(monday, 6); // lun -> dim
@@ -52,27 +53,37 @@ export function getPeriodRange(monday: string, mode: string = "bi-weekly"): { fr
     const d = new Date(monday + "T12:00:00");
     const year = d.getFullYear();
     const month = d.getMonth();
-    // End of the month
-    const endOfMonth = new Date(year, month + 1, 0, 12);
-    // Align to Sunday of the last week? Or just end of month?
-    // In WeekForm, we iterate full weeks (Monday-Friday actually). 
-    // If the month ends on Wednesday, WeekForm probably shows Thursday/Friday of next month if we use full weeks.
-    // Let's check WeekForm logic again.
     
-    // WeekForm logic:
-    // const lastDayOfMonth = new Date(year, month + 1, 0, 12);
-    // const endMonday = getMondayOfWeek(lastDayOfMonth.toISOString().slice(0, 10));
-    // while (currentMonday <= endMonday) ...
-    // So it includes the full week of the last day of the month.
+    const firstDayOfMonth = new Date(year, month, 1, 12);
+    from = getMondayOfWeek(firstDayOfMonth.toISOString().slice(0, 10));
     
     const lastDayOfMonth = new Date(year, month + 1, 0, 12);
     const endMonday = getMondayOfWeek(lastDayOfMonth.toISOString().slice(0, 10));
-    const endFriday = addDays(endMonday, 4); 
-    // Actually, let's include the weekend just in case, so addDays(endMonday, 6)
     to = addDays(endMonday, 6);
   } else {
-    // bi-weekly
-    to = addDays(monday, 13);
+    // bi-weekly - align to a fixed reference Monday (2024-01-08)
+    // Using Jan 8th ensures Week 1 of most years is a period start.
+    const reference = new Date("2024-01-08T12:00:00");
+    const d = new Date(monday + "T12:00:00");
+    const diffTime = d.getTime() - reference.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const bucketIndex = Math.floor(diffDays / 14);
+    
+    const start = new Date(reference.getTime());
+    start.setDate(start.getDate() + bucketIndex * 14);
+    from = start.toISOString().slice(0, 10);
+    to = addDays(from, 13);
   }
-  return { from: monday, to };
+  return { from, to };
+}
+
+export function getBiWeeklyStart(dateStr: string): string {
+  const reference = new Date("2024-01-08T12:00:00");
+  const d = new Date(dateStr + "T12:00:00");
+  const diffTime = d.getTime() - reference.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  const bucketIndex = Math.floor(diffDays / 14);
+  const start = new Date(reference.getTime());
+  start.setDate(start.getDate() + bucketIndex * 14);
+  return start.toISOString().slice(0, 10);
 }

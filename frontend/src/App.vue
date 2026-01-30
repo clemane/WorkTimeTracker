@@ -15,7 +15,7 @@ import LoginCard from "./components/LoginCard.vue";
 import ProfileCard from "./components/ProfileCard.vue";
 import MatrixRain from "./components/MatrixRain.vue";
 import { getSessions, type WorkSession, type User } from "./services/api";
-import { getMondayOfWeek, addDays, getPeriodRange } from "./utils/week";
+import { getMondayOfWeek, addDays, getPeriodRange, getBiWeeklyStart } from "./utils/week";
 
 const activeTab = ref<"week" | "history" | "profile">("week");
 const weekStart = ref(getMondayOfWeek(new Date().toISOString().slice(0, 10)));
@@ -26,7 +26,8 @@ const currentUser = ref<User | null>(null);
 
 const weekRange = computed(() => {
   const mode = currentUser.value?.timesheet_mode ?? "bi-weekly";
-  return getPeriodRange(weekStart.value, mode);
+  const range = getPeriodRange(weekStart.value, mode);
+  return range;
 });
 
 const weekSessions = computed(() => sessions.value);
@@ -38,6 +39,10 @@ function loadUserFromStorage() {
     const parsed = JSON.parse(raw) as User;
     if (parsed && parsed.id && parsed.username) {
       currentUser.value = parsed;
+      // Ensure initial weekStart is aligned if bi-weekly
+      if (parsed.timesheet_mode === "bi-weekly") {
+        weekStart.value = getBiWeeklyStart(weekStart.value);
+      }
     }
   } catch {
     // ignore
@@ -65,7 +70,16 @@ function onWeekSaved() {
 }
 
 function onWeekChange(monday: string) {
-  weekStart.value = monday;
+  const mode = currentUser.value?.timesheet_mode ?? "bi-weekly";
+  if (mode === "bi-weekly") {
+    weekStart.value = getBiWeeklyStart(monday);
+  } else if (mode === "monthly") {
+    const d = new Date(monday + "T12:00:00");
+    const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1, 12).toISOString().slice(0, 10);
+    weekStart.value = getMondayOfWeek(startOfMonth);
+  } else {
+    weekStart.value = monday;
+  }
 }
 
 watch(

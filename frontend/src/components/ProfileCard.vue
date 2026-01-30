@@ -99,19 +99,6 @@ async function saveSettings() {
   }
 }
 
-
-    // Emit update instead of reloading
-    emit("update:user", updatedUser);
-
-    settingsSuccess.value = true;
-    setTimeout(() => { settingsSuccess.value = false; }, 2000);
-  } catch (e) {
-    alert("Erreur lors de la mise à jour des préférences");
-  } finally {
-    updatingSettings.value = false;
-  }
-}
-
 watch(
   [selectedMode, defaultArrival, defaultDeparture, workingDays],
   () => {

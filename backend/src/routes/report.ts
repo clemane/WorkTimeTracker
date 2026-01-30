@@ -32,7 +32,18 @@ function formatHumanDate(dateStr: string): string {
     day: "2-digit",
     month: "short",
   });
-  return day.replace(/\\.$/, "");
+  return day.replace(/\.$/, "");
+}
+
+function getBiWeeklyStart(dateStr: string): string {
+  const reference = new Date("2024-01-08T12:00:00");
+  const d = new Date(dateStr + "T12:00:00");
+  const diffTime = d.getTime() - reference.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  const bucketIndex = Math.floor(diffDays / 14);
+  const start = new Date(reference.getTime());
+  start.setDate(start.getDate() + bucketIndex * 14);
+  return start.toISOString().slice(0, 10);
 }
 
 function computeNetMinutes(s: WorkSession): number {
@@ -68,13 +79,15 @@ function getPeriodsInRange(start: string, end: string, mode: string): { start: s
       const d = new Date(current + "T12:00:00");
       const year = d.getFullYear();
       const month = d.getMonth();
-      // End of month
+      const startOfMonth = new Date(year, month, 1, 12).toISOString().slice(0, 10);
+      current = getMondayOfWeek(startOfMonth);
+      
       const lastDayOfMonth = new Date(year, month + 1, 0, 12);
-      // We align to the Sunday of the last week of the month to match frontend visual
       const endMonday = getMondayOfWeek(lastDayOfMonth.toISOString().slice(0, 10));
       periodEnd = addDays(endMonday, 6);
     } else {
       // bi-weekly
+      current = getBiWeeklyStart(current);
       periodEnd = addDays(current, 13);
     }
     
@@ -219,7 +232,8 @@ router.get("/", async (req: Request, res: Response) => {
     to = addDays(from, 6); // lun -> dim
     periodLabel = "Hebdomadaire";
   } else {
-    // Par défaut : 2 semaines
+    // bi-weekly : On fait confiance au lundi fourni pour l'export individuel
+    // pour éviter les décalages si l'utilisateur a une période personnalisée.
     to = addDays(from, 13);
     periodLabel = "2 semaines";
   }

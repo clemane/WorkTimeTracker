@@ -10,6 +10,7 @@ import {
   addDays,
   getDayLabel,
   formatDayShort,
+  getBiWeeklyStart,
 } from "../utils/week";
 import { 
   ChevronLeft, 
@@ -42,8 +43,12 @@ const emit = defineEmits<{
 }>();
 
 const todayDate = new Date().toISOString().slice(0, 10);
-const defaultMonday = getMondayOfWeek(todayDate);
-const weekStart = ref(props.initialMonday ?? defaultMonday);
+const defaultMonday = computed(() => {
+    const rawMonday = getMondayOfWeek(todayDate);
+    if (mode.value === "bi-weekly") return getBiWeeklyStart(rawMonday);
+    return rawMonday;
+});
+const weekStart = ref(props.initialMonday ?? defaultMonday.value);
 const workingDays = computed(() => {
     // If workingDays prop is provided and non-empty, use it.
     // Otherwise fallback to default [0,1,2,3,4].
@@ -308,7 +313,10 @@ function goPrevPeriod() {
   
   // Re-align to Monday
   let newDateStr = d.toISOString().slice(0, 10);
-  weekStart.value = getMondayOfWeek(newDateStr);
+  let aligned = getMondayOfWeek(newDateStr);
+  if (mode.value === "bi-weekly") aligned = getBiWeeklyStart(aligned);
+  
+  weekStart.value = aligned;
   emit("update:weekStart", weekStart.value);
 }
 
@@ -323,7 +331,10 @@ function goNextPeriod() {
   }
   
   let newDateStr = d.toISOString().slice(0, 10);
-  weekStart.value = getMondayOfWeek(newDateStr);
+  let aligned = getMondayOfWeek(newDateStr);
+  if (mode.value === "bi-weekly") aligned = getBiWeeklyStart(aligned);
+
+  weekStart.value = aligned;
   emit("update:weekStart", weekStart.value);
 }
 

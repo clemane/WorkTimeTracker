@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 import type { WorkSession } from "../services/api";
 import { deleteSessionsByPeriod } from "../services/api";
 import { computeNetMinutes, minutesToHHMM } from "../utils/time";
-import { getMondayOfWeek, addDays, formatDayShort } from "../utils/week";
+import { getMondayOfWeek, addDays, formatDayShort, getBiWeeklyStart } from "../utils/week";
 import { 
   FileText, 
   Trash2, 
@@ -55,10 +55,8 @@ const periodGroups = computed<PeriodGroup[]>(() => {
   
   // To avoid duplicates and respect user mode, we should fetch user mode or guess it?
   // Ideally, the grouping logic should match how data was entered.
-  // For now, let's keep the bi-weekly logic but ensure it's robust.
+  // We use a fixed reference (2024-01-01) for bi-weekly alignment.
   
-  const earliestMonday = getMondayOfWeek(sorted[0].date);
-
   function getPeriodStart(dateStr: string): string {
     if (viewMode.value === "monthly") {
         // Group by 1st of month
@@ -75,12 +73,7 @@ const periodGroups = computed<PeriodGroup[]>(() => {
     }
 
     // Bi-weekly
-    const start = new Date(earliestMonday + "T12:00:00");
-    const current = new Date(monday + "T12:00:00");
-    const diffDays = Math.floor((current.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    
-    const bucketIndex = Math.floor(diffDays / 14);
-    return addDays(earliestMonday, bucketIndex * 14);
+    return getBiWeeklyStart(monday);
   }
 
   const map = new Map<string, PeriodGroup>();
