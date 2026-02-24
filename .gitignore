@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build
+dist/
+*.local
+
+# SQLite (données locales)
+*.db
+*.db-wal
+*.db-shm
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Generated reports
+*.pdf
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+.cursor/
+.opencode/
+*.swp
+*.swo
+
+# BMAD / AI scaffolding
+_bmad/
+_bmad-output/
+
+# Accidental copies
+home/
