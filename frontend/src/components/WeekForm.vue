@@ -478,10 +478,10 @@ const weeks = computed(() => {
     <!-- Stats Summary -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <div v-for="stat in [
-        { label: 'Heures à payer', value: totalNetLabel, icon: Clock, color: 'text-primary', subline: '' },
-        { label: 'Pris sur vacances', value: minutesToHHMM(prisSurVacancesMinutes), icon: Palmtree, color: 'text-cyan-400', subline: vacationCount > 0 ? (vacationCount + ' jour' + (vacationCount > 1 ? 's' : '')) : 'aucun', hide: vacationCount === 0 && holidayCount === 0 },
-        { label: 'Pris sur fériés', value: minutesToHHMM(prisSurFeriesMinutes), icon: Sun, color: 'text-amber-400', subline: holidayCount > 0 ? (holidayCount + ' jour' + (holidayCount > 1 ? 's' : '')) : 'aucun', hide: vacationCount === 0 && holidayCount === 0 },
-        { label: 'Télétravail', value: minutesToHHMM(rows.reduce((acc, r) => acc + (r.day_type === 'normal' ? r.remote_minutes : 0), 0)), icon: Home, color: 'text-green-400', subline: '' }
+        { label: 'Heures travaillées', value: totalNetLabel, icon: Clock, color: 'text-primary', subline: '' },
+        { label: 'Pris sur vacances', value: minutesToHHMM(prisSurVacancesMinutes), icon: Palmtree, color: 'text-cyan-400', subline: vacationCount > 0 ? (vacationCount + ' jour' + (vacationCount > 1 ? 's' : '')) : '', hide: vacationCount === 0 },
+        { label: 'Pris sur fériés', value: minutesToHHMM(prisSurFeriesMinutes), icon: Sun, color: 'text-amber-400', subline: holidayCount > 0 ? (holidayCount + ' jour' + (holidayCount > 1 ? 's' : '')) : '', hide: holidayCount === 0 },
+        { label: 'Heures totales', value: minutesToHHMM(totalNetMinutes + prisSurVacancesMinutes + prisSurFeriesMinutes), icon: CheckCircle2, color: 'text-green-400', subline: '' }
       ].filter(s => !s.hide)" :key="stat.label" class="bg-surface/50 border border-border p-6 rounded-3xl backdrop-blur-sm">
         <div class="flex items-center gap-4">
           <div :class="`p-3 rounded-2xl bg-canvas border border-border ${stat.color}`">

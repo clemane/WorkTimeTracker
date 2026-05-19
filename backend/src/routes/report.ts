@@ -332,11 +332,11 @@ router.get("/", async (req: Request, res: Response) => {
       });
 
       worksheet.addRow({});
-      const payRow = worksheet.addRow({
-        date: 'HEURES À PAYER',
+      const workedRow = worksheet.addRow({
+        date: 'HEURES TRAVAILLÉES',
         net: minutesToHHMM(totalMinutes)
       });
-      payRow.font = { bold: true };
+      workedRow.font = { bold: true };
 
       if (vacationCount > 0) {
         const vacRow = worksheet.addRow({
@@ -354,6 +354,11 @@ router.get("/", async (req: Request, res: Response) => {
         });
         holRow.font = { bold: true };
       }
+      const totalRow = worksheet.addRow({
+        date: 'HEURES TOTALES',
+        net: minutesToHHMM(totalMinutes + prisSurVacances + prisSurFeries)
+      });
+      totalRow.font = { bold: true };
 
       res.setHeader(
         "Content-Type",
@@ -564,7 +569,7 @@ router.get("/", async (req: Request, res: Response) => {
       <div class="period">Période : du ${formatHumanDate(from)} au ${formatHumanDate(to)}</div>
       <div class="totals-row">
         <div class="summary-card pay">
-          <div class="summary-title">Heures à payer</div>
+          <div class="summary-title">Heures travaillées</div>
           <div class="summary-value">${minutesToHHMM(totalMinutes)}</div>
         </div>
         ${vacationCount > 0 ? `
@@ -579,6 +584,10 @@ router.get("/", async (req: Request, res: Response) => {
           <div class="summary-value">${minutesToHHMM(prisSurFeries)}</div>
           <div class="counters">${holidayCount} jour${holidayCount > 1 ? "s" : ""}</div>
         </div>` : ""}
+        <div class="summary-card total">
+          <div class="summary-title">Heures totales</div>
+          <div class="summary-value">${minutesToHHMM(totalMinutes + prisSurVacances + prisSurFeries)}</div>
+        </div>
       </div>
       <div class="summary">
         ${summaryHtml}
