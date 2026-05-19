@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import path from "path";
-import { WorkSession } from "./types";
+import { WorkSession, DayType } from "./types";
 
 const dbPath = path.join(process.cwd(), "worktime.db");
 const db = new Database(dbPath);
@@ -36,6 +36,14 @@ const workSessionColumns = db
 
 if (!workSessionColumns.some((c) => c.name === "user_id")) {
   db.exec("ALTER TABLE work_sessions ADD COLUMN user_id INTEGER");
+}
+
+if (!workSessionColumns.some((c) => c.name === "day_type")) {
+  db.exec("ALTER TABLE work_sessions ADD COLUMN day_type TEXT DEFAULT 'normal'");
+}
+
+if (!workSessionColumns.some((c) => c.name === "worked_minutes")) {
+  db.exec("ALTER TABLE work_sessions ADD COLUMN worked_minutes INTEGER");
 }
 
 // Check for timesheet_mode in users
@@ -102,8 +110,9 @@ export function mapRowToWorkSession(row: any): WorkSession {
     break_minutes: row.break_minutes,
     remote_minutes: row.remote_minutes,
     notes: row.notes,
+    day_type: (row.day_type as DayType) ?? "normal",
+    worked_minutes: row.worked_minutes,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
 }
-

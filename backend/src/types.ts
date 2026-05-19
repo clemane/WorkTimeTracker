@@ -1,3 +1,5 @@
+export type DayType = "normal" | "holiday" | "vacation";
+
 export interface WorkSession {
   id?: number;
   user_id?: number;
@@ -7,7 +9,8 @@ export interface WorkSession {
   break_minutes: number;
   remote_minutes?: number | null;
   notes?: string | null;
+  day_type: DayType;
+  worked_minutes?: number | null;
   created_at?: string;
   updated_at?: string;
 }
-
