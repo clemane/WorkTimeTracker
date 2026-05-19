@@ -13,6 +13,12 @@ function isValidTime(timeStr: string): boolean {
   return /^\d{2}:\d{2}$/.test(timeStr);
 }
 
+function getDayIndex(dStr: string): number {
+  const d = new Date(dStr + "T12:00:00");
+  const day = d.getDay();
+  return day === 0 ? 6 : day - 1;
+}
+
 // GET /api/sessions?from=YYYY-MM-DD&to=YYYY-MM-DD&userId=number
 router.get("/", (req: Request, res: Response) => {
   const { from, to, userId } = req.query as {
@@ -173,12 +179,6 @@ router.post("/bulk", (req: Request, res: Response) => {
     } catch {}
   }
 
-  const getDayIndex = (dStr: string) => {
-    const d = new Date(dStr + "T12:00:00");
-    const day = d.getDay();
-    return day === 0 ? 6 : day - 1;
-  };
-
   for (const s of body.sessions) {
     if (!s.date || !isValidDate(s.date)) continue;
 
@@ -208,6 +208,7 @@ router.post("/bulk", (req: Request, res: Response) => {
     if (dayType === "normal") {
       if (!arrivalTime || !isValidTime(arrivalTime)) continue;
       if (!departureTime || !isValidTime(departureTime)) continue;
+      // workedMinutes reste null : pour les jours normaux, le total est calculé depuis arrival/departure/break/remote
     } else {
       // Non-normal day : on garde arrival/departure si valides (pour préserver l'état),
       // sinon on met des valeurs par défaut inoffensives.
