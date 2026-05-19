@@ -18,6 +18,7 @@ export interface User {
   working_days?: number[]; // [0, 1, 2, 3, 4] for Mon-Fri
   default_arrival?: string;
   default_departure?: string;
+  default_break_minutes?: number;
 }
 
 const baseUrl = "/api";

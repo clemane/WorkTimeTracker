@@ -158,7 +158,7 @@ onMounted(() => {
           <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary group-hover:scale-110 transition-transform">
             <Clock class="h-5 w-5 text-primary-text" />
           </div>
-          <span class="text-lg font-bold tracking-tight">Time Tracker</span>
+          <span class="text-lg font-bold tracking-tight">Feuille de temps</span>
         </div>
 
         <nav v-if="currentUser" class="hidden md:flex items-center gap-1 bg-surface p-1 rounded-xl border border-border">
@@ -259,6 +259,7 @@ onMounted(() => {
             :working-days="currentUser.working_days"
             :default-arrival="currentUser.default_arrival"
             :default-departure="currentUser.default_departure"
+            :default-break="currentUser.default_break_minutes"
             @saved="onWeekSaved"
             @update:week-start="onWeekChange"
           />

@@ -60,6 +60,10 @@ if (!userColumns.some((c) => c.name === "default_departure")) {
   db.exec("ALTER TABLE users ADD COLUMN default_departure TEXT DEFAULT '16:30'");
 }
 
+if (!userColumns.some((c) => c.name === "default_break_minutes")) {
+  db.exec("ALTER TABLE users ADD COLUMN default_break_minutes INTEGER DEFAULT 60");
+}
+
 
 // Seed de base pour les utilisateurs si la table est vide
 const existingUsers = db.prepare("SELECT COUNT(*) as c FROM users").get() as {

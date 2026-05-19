@@ -36,6 +36,7 @@ const props = defineProps<{
   workingDays?: number[];
   defaultArrival?: string;
   defaultDeparture?: string;
+  defaultBreak?: number;
 }>();
 
 const emit = defineEmits<{
@@ -60,6 +61,7 @@ const workingDays = computed(() => {
 }); 
 const defaultArrival = computed(() => props.defaultArrival ?? "07:30");
 const defaultDeparture = computed(() => props.defaultDeparture ?? "16:30");
+const defaultBreak = computed(() => props.defaultBreak ?? 60);
 
 watch(
   () => props.initialMonday,
@@ -144,7 +146,7 @@ function buildDefaultRow(date: string): DayRow {
     date,
     arrival_time: defaultArrival.value,
     departure_time: defaultDeparture.value,
-    break_minutes: 60,
+    break_minutes: defaultBreak.value,
     remote_minutes: 0,
     notes: "",
   };
@@ -207,7 +209,7 @@ function initRows() {
 }
 
 watch(
-  [weekStart, () => props.existingSessions, defaultArrival, defaultDeparture],
+  [weekStart, () => props.existingSessions, defaultArrival, defaultDeparture, defaultBreak],
   () => initRows(),
   { immediate: true }
 );

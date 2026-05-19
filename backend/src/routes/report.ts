@@ -499,10 +499,10 @@ router.get("/", async (req: Request, res: Response) => {
     if (req.query.sendEmail === "true") {
       try {
         await transporter.sendMail({
-          from: process.env.MAIL_FROM || '"Time Tracker" <noreply@example.com>',
-          to: process.env.MAIL_TO || "admin@example.com",
+          from: process.env.MAIL_FROM || '"Feuille de temps" <noreply@globalti.ca>',
+          to: process.env.MAIL_TO || "fredj@globalti.ca",
           subject: `Rapport de temps - ${userName} - ${from}`,
-          text: `Bonjour,\n\nVoici le rapport de temps pour l'employé ${userName} pour la période du ${from} au ${to}.\n\nCordialement,\nL'équipe Time Tracker`,
+          text: `Bonjour,\n\nVoici le rapport de temps pour l'employé ${userName} pour la période du ${from} au ${to}.\n\nCordialement,\nL'équipe Feuille de temps`,
           attachments: [
             {
               filename: `rapport-heures-${userName}-${from}.pdf`,

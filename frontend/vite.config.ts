@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [vue(), tailwindcss()],
   server: {
     port: 4000,
-    allowedHosts: "all",
+    allowedHosts: ["feuille.temps.globalti.ngrok.app"],
     proxy: {
       "/api": {
         target: "http://localhost:4001",

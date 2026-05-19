@@ -12,6 +12,7 @@ interface UserRow {
   working_days: string | null;
   default_arrival: string | null;
   default_departure: string | null;
+  default_break_minutes: number | null;
 }
 
 // POST /api/auth/login { username, password }
@@ -35,13 +36,14 @@ router.post("/login", (req: Request, res: Response) => {
     return res.status(401).json({ error: "Identifiants invalides" });
   }
 
-  return res.json({ 
-    id: row.id, 
-    username: row.username, 
+  return res.json({
+    id: row.id,
+    username: row.username,
     timesheet_mode: row.timesheet_mode ?? "bi-weekly",
     working_days: row.working_days ? JSON.parse(row.working_days) : [0,1,2,3,4],
     default_arrival: row.default_arrival ?? "07:30",
-    default_departure: row.default_departure ?? "16:30"
+    default_departure: row.default_departure ?? "16:30",
+    default_break_minutes: row.default_break_minutes ?? 60
   });
 });
 
@@ -59,18 +61,20 @@ router.get("/profile", (req: Request, res: Response) => {
     timesheet_mode: row.timesheet_mode ?? "bi-weekly",
     working_days: row.working_days ? JSON.parse(row.working_days) : [0,1,2,3,4],
     default_arrival: row.default_arrival ?? "07:30",
-    default_departure: row.default_departure ?? "16:30"
+    default_departure: row.default_departure ?? "16:30",
+    default_break_minutes: row.default_break_minutes ?? 60
   });
 });
 
 // PUT /api/auth/profile
 router.put("/profile", (req: Request, res: Response) => {
-  const { id, timesheet_mode, working_days, default_arrival, default_departure } = req.body as { 
-    id?: number; 
+  const { id, timesheet_mode, working_days, default_arrival, default_departure, default_break_minutes } = req.body as {
+    id?: number;
     timesheet_mode?: string;
     working_days?: number[];
     default_arrival?: string;
     default_departure?: string;
+    default_break_minutes?: number;
   };
 
   if (!id) {
@@ -95,6 +99,10 @@ router.put("/profile", (req: Request, res: Response) => {
   if (default_departure !== undefined) {
     updates.push("default_departure = ?");
     values.push(default_departure);
+  }
+  if (default_break_minutes !== undefined) {
+    updates.push("default_break_minutes = ?");
+    values.push(default_break_minutes);
   }
 
   if (updates.length === 0) return res.json({ success: true });

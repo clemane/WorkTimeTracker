@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { changePassword, updateProfile, type User } from "../services/api";
-import { 
-  User as UserIcon, 
-  ShieldCheck, 
-  Key, 
-  CheckCircle2, 
+import {
+  User as UserIcon,
+  ShieldCheck,
+  Key,
+  CheckCircle2,
   AlertCircle,
   Loader2,
   Lock,
   Settings,
   Clock,
   CalendarDays,
+  Coffee,
   Palette
 } from "lucide-vue-next";
 import TimeInput from "./TimeInput.vue";
@@ -36,6 +37,7 @@ const success = ref(false);
 const selectedMode = ref(props.user.timesheet_mode ?? "bi-weekly");
 const defaultArrival = ref(props.user.default_arrival ?? "07:30");
 const defaultDeparture = ref(props.user.default_departure ?? "16:30");
+const defaultBreakMinutes = ref(props.user.default_break_minutes ?? 60);
 const workingDays = ref<number[]>(props.user.working_days ?? [0,1,2,3,4]);
 
 // Theme selection
@@ -60,6 +62,7 @@ watch(() => props.user, (u) => {
   if (u.timesheet_mode) selectedMode.value = u.timesheet_mode;
   if (u.default_arrival) defaultArrival.value = u.default_arrival;
   if (u.default_departure) defaultDeparture.value = u.default_departure;
+  if (u.default_break_minutes !== undefined) defaultBreakMinutes.value = u.default_break_minutes;
   if (u.working_days) workingDays.value = u.working_days;
 }, { deep: true });
 
@@ -72,7 +75,8 @@ async function saveSettings() {
       timesheet_mode: selectedMode.value as any,
       working_days: workingDays.value,
       default_arrival: defaultArrival.value,
-      default_departure: defaultDeparture.value
+      default_departure: defaultDeparture.value,
+      default_break_minutes: defaultBreakMinutes.value
     };
     
     await updateProfile(props.user.id, newData);
@@ -100,7 +104,7 @@ async function saveSettings() {
 }
 
 watch(
-  [selectedMode, defaultArrival, defaultDeparture, workingDays],
+  [selectedMode, defaultArrival, defaultDeparture, workingDays, defaultBreakMinutes],
   () => {
     saveSettings();
   },
@@ -251,6 +255,24 @@ async function onSubmit() {
                    <Clock class="h-3 w-3" /> Fin
                  </label>
                  <TimeInput v-model="defaultDeparture" />
+               </div>
+             </div>
+
+             <!-- Pause par défaut -->
+             <div>
+               <label class="text-[10px] font-bold uppercase text-text-muted block mb-2 flex items-center gap-2">
+                 <Coffee class="h-3 w-3" /> Pause par défaut
+               </label>
+               <div class="relative">
+                 <input
+                   v-model.number="defaultBreakMinutes"
+                   type="number"
+                   min="0"
+                   max="480"
+                   step="5"
+                   class="w-full bg-canvas border border-border rounded-xl px-3 py-2 text-sm pr-12 outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all text-text-body"
+                 />
+                 <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-text-muted font-bold">min</span>
                </div>
              </div>
 
