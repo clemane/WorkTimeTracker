@@ -111,6 +111,8 @@ const weekDates = computed(() => {
   return getTwoWeekDates(weekStart.value);
 });
 
+// DayRow garde worked_minutes toujours en number (0 par défaut) pour le state local du formulaire.
+// La conversion en null pour les jours normaux a lieu uniquement dans saveWeek au moment du payload.
 type DayRow = {
   date: string;
   arrival_time: string;
@@ -122,6 +124,11 @@ type DayRow = {
   worked_minutes: number;
   id?: number;
 };
+
+function setRowWorkedMinutes(r: DayRow, value: string) {
+  const [h, m] = value.split(":").map((x) => parseInt(x, 10));
+  r.worked_minutes = (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+}
 
 function computeRowNet(r: DayRow): number {
   if (r.day_type === "holiday" || r.day_type === "vacation") {
@@ -499,10 +506,11 @@ const weeks = computed(() => {
                 </div>
               </div>
 
-              <div class="flex items-center gap-1 mb-4 bg-canvas border border-border rounded-2xl p-1">
+              <div role="group" class="flex items-center gap-1 mb-4 bg-canvas border border-border rounded-2xl p-1">
                 <button
                   type="button"
                   @click="row.day_type = 'normal'"
+                  :aria-pressed="row.day_type === 'normal'"
                   :class="[
                     'flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase rounded-xl transition-all',
                     row.day_type === 'normal' ? 'bg-primary text-primary-text' : 'text-text-muted hover:text-text-body'
@@ -513,6 +521,7 @@ const weeks = computed(() => {
                 <button
                   type="button"
                   @click="row.day_type = 'holiday'"
+                  :aria-pressed="row.day_type === 'holiday'"
                   :class="[
                     'flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase rounded-xl transition-all',
                     row.day_type === 'holiday' ? 'bg-amber-400 text-amber-950' : 'text-text-muted hover:text-text-body'
@@ -523,6 +532,7 @@ const weeks = computed(() => {
                 <button
                   type="button"
                   @click="row.day_type = 'vacation'"
+                  :aria-pressed="row.day_type === 'vacation'"
                   :class="[
                     'flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase rounded-xl transition-all',
                     row.day_type === 'vacation' ? 'bg-cyan-400 text-cyan-950' : 'text-text-muted hover:text-text-body'
@@ -591,7 +601,7 @@ const weeks = computed(() => {
                   <label class="text-[10px] font-bold uppercase text-text-muted flex items-center gap-1">
                     <Clock class="h-3 w-3" /> Heures travaillées
                   </label>
-                  <TimeInput :model-value="minutesToHHMM(row.worked_minutes)" @update:model-value="(v: string) => { const [h,m] = v.split(':').map(x => parseInt(x,10)); row.worked_minutes = (isNaN(h)?0:h)*60 + (isNaN(m)?0:m); }" />
+                  <TimeInput :model-value="minutesToHHMM(row.worked_minutes)" @update:model-value="(v) => setRowWorkedMinutes(row, v)" />
                   <p class="text-[10px] text-text-muted">Laisser 00:00 si aucune heure travaillée.</p>
                 </div>
 
