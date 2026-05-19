@@ -48,12 +48,21 @@ function getBiWeeklyStart(dateStr: string): string {
 }
 
 function computeNetMinutes(s: WorkSession): number {
+  if (s.day_type === "holiday" || s.day_type === "vacation") {
+    return s.worked_minutes ?? 0;
+  }
   const [ah, am] = s.arrival_time.split(":").map((x) => parseInt(x, 10));
   const [dh, dm] = s.departure_time.split(":").map((x) => parseInt(x, 10));
   const span = (dh * 60 + dm) - (ah * 60 + am);
   const breakMinutes = s.break_minutes ?? 0;
   const remoteMinutes = s.remote_minutes ?? 0;
   return span - breakMinutes + remoteMinutes;
+}
+
+function dayTypeLabel(t: WorkSession["day_type"]): string {
+  if (t === "holiday") return "Férié";
+  if (t === "vacation") return "Vacances";
+  return "";
 }
 
 function minutesToHHMM(total: number): string {
@@ -136,6 +145,7 @@ router.get("/bulk", async (req: Request, res: Response) => {
 
         worksheet.columns = [
           { header: 'Date', key: 'date', width: 15 },
+          { header: 'Type', key: 'type', width: 10 },
           { header: 'Arrivée', key: 'arrival', width: 10 },
           { header: 'Départ', key: 'departure', width: 10 },
           { header: 'Pause (min)', key: 'break', width: 12 },
@@ -152,12 +162,14 @@ router.get("/bulk", async (req: Request, res: Response) => {
         sessions.forEach(s => {
           const net = computeNetMinutes(s);
           totalPeriodMinutes += net;
+          const isSpecial = s.day_type === "holiday" || s.day_type === "vacation";
           worksheet.addRow({
             date: formatHumanDate(s.date),
-            arrival: s.arrival_time,
-            departure: s.departure_time,
-            break: s.break_minutes,
-            remote: s.remote_minutes ?? 0,
+            type: dayTypeLabel(s.day_type),
+            arrival: isSpecial ? "" : s.arrival_time,
+            departure: isSpecial ? "" : s.departure_time,
+            break: isSpecial ? "" : s.break_minutes,
+            remote: isSpecial ? "" : (s.remote_minutes ?? 0),
             net: minutesToHHMM(net),
             notes: s.notes
           });
@@ -261,6 +273,7 @@ router.get("/", async (req: Request, res: Response) => {
 
       worksheet.columns = [
         { header: 'Date', key: 'date', width: 15 },
+        { header: 'Type', key: 'type', width: 10 },
         { header: 'Arrivée', key: 'arrival', width: 10 },
         { header: 'Départ', key: 'departure', width: 10 },
         { header: 'Pause', key: 'break', width: 10 },
@@ -272,12 +285,14 @@ router.get("/", async (req: Request, res: Response) => {
       worksheet.getRow(1).font = { bold: true };
 
       sessions.forEach(s => {
+        const isSpecial = s.day_type === "holiday" || s.day_type === "vacation";
         worksheet.addRow({
           date: formatHumanDate(s.date),
-          arrival: s.arrival_time,
-          departure: s.departure_time,
-          break: s.break_minutes,
-          remote: s.remote_minutes ?? 0,
+          type: dayTypeLabel(s.day_type),
+          arrival: isSpecial ? "" : s.arrival_time,
+          departure: isSpecial ? "" : s.departure_time,
+          break: isSpecial ? "" : s.break_minutes,
+          remote: isSpecial ? "" : (s.remote_minutes ?? 0),
           net: minutesToHHMM(computeNetMinutes(s)),
           notes: s.notes
         });
@@ -309,6 +324,15 @@ router.get("/", async (req: Request, res: Response) => {
   // PDF GENERATION (Default)
   const inRange = (dateStr: string, start: string, end: string) =>
     dateStr >= start && dateStr <= end;
+
+  const holidayCount = sessions.filter((s) => s.day_type === "holiday").length;
+  const vacationCount = sessions.filter((s) => s.day_type === "vacation").length;
+  const counterParts: string[] = [];
+  if (holidayCount > 0) counterParts.push(`${holidayCount} jour${holidayCount > 1 ? "s" : ""} férié${holidayCount > 1 ? "s" : ""}`);
+  if (vacationCount > 0) counterParts.push(`${vacationCount} jour${vacationCount > 1 ? "s" : ""} de vacances`);
+  const countersLine = counterParts.length > 0
+    ? `<div class="counters">${counterParts.join(" · ")}</div>`
+    : "";
 
   // Génération dynamique des cartes de résumé par semaine
   let summaryHtml = "";
@@ -351,15 +375,22 @@ router.get("/", async (req: Request, res: Response) => {
   const htmlRows = sessions
     .map((s) => {
       const net = minutesToHHMM(computeNetMinutes(s));
+      const isSpecial = s.day_type === "holiday" || s.day_type === "vacation";
+      const typeBadge = s.day_type === "holiday"
+        ? `<span class="badge badge-holiday">Férié</span>`
+        : s.day_type === "vacation"
+        ? `<span class="badge badge-vacation">Vacances</span>`
+        : "";
       return `<tr>
-        <td>${formatHumanDate(s.date)}</td>
-        <td>${s.arrival_time}</td>
-        <td>${s.departure_time}</td>
-        <td>${s.break_minutes}</td>
-        <td>${s.remote_minutes ?? 0}</td>
-        <td>${net}</td>
-        <td>${(s.notes ?? "").replace(/</g, "&lt;")}</td>
-      </tr>`;
+      <td>${formatHumanDate(s.date)}</td>
+      <td>${typeBadge}</td>
+      <td>${isSpecial ? "" : s.arrival_time}</td>
+      <td>${isSpecial ? "" : s.departure_time}</td>
+      <td>${isSpecial ? "" : s.break_minutes}</td>
+      <td>${isSpecial ? "" : (s.remote_minutes ?? 0)}</td>
+      <td class="net">${net}</td>
+      <td>${(s.notes ?? "").replace(/</g, "&lt;")}</td>
+    </tr>`;
     })
     .join("\n");
 
@@ -443,6 +474,29 @@ router.get("/", async (req: Request, res: Response) => {
           font-weight: 600;
           color: #0e7490;
         }
+        .badge {
+          display: inline-block;
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+        }
+        .badge-holiday {
+          background: #fef3c7;
+          color: #92400e;
+          border: 1px solid #fcd34d;
+        }
+        .badge-vacation {
+          background: #cffafe;
+          color: #155e75;
+          border: 1px solid #67e8f9;
+        }
+        .counters {
+          font-size: 11px;
+          color: #6b7280;
+          margin-top: 2px;
+        }
       </style>
     </head>
     <body>
@@ -454,12 +508,14 @@ router.get("/", async (req: Request, res: Response) => {
         <div class="summary-card total">
           <div class="summary-title">Total Période</div>
           <div class="summary-value">${minutesToHHMM(totalMinutes)}</div>
+          ${countersLine}
         </div>
       </div>
       <table>
         <thead>
           <tr>
             <th>Jour</th>
+            <th>Type</th>
             <th>Arrivée</th>
             <th>Départ</th>
             <th>Repas (min)</th>
