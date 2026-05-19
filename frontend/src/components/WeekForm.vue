@@ -27,7 +27,8 @@ import {
   Loader2,
   Mail,
   Sun,
-  Palmtree
+  Palmtree,
+  Briefcase
 } from "lucide-vue-next";
 import TimeInput from "./TimeInput.vue";
 
@@ -511,34 +512,40 @@ const weeks = computed(() => {
                   type="button"
                   @click="row.day_type = 'normal'"
                   :aria-pressed="row.day_type === 'normal'"
+                  title="Jour normal"
                   :class="[
-                    'flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase rounded-xl transition-all',
+                    'flex-1 flex items-center justify-center gap-1 px-1 py-1.5 text-[10px] font-semibold rounded-xl transition-all whitespace-nowrap',
                     row.day_type === 'normal' ? 'bg-primary text-primary-text' : 'text-text-muted hover:text-text-body'
                   ]"
                 >
-                  Normal
+                  <Briefcase class="h-3 w-3 shrink-0" />
+                  <span class="hidden xl:inline">Normal</span>
                 </button>
                 <button
                   type="button"
                   @click="row.day_type = 'holiday'"
                   :aria-pressed="row.day_type === 'holiday'"
+                  title="Jour férié"
                   :class="[
-                    'flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase rounded-xl transition-all',
+                    'flex-1 flex items-center justify-center gap-1 px-1 py-1.5 text-[10px] font-semibold rounded-xl transition-all whitespace-nowrap',
                     row.day_type === 'holiday' ? 'bg-amber-400 text-amber-950' : 'text-text-muted hover:text-text-body'
                   ]"
                 >
-                  <Sun class="h-3 w-3" /> Férié
+                  <Sun class="h-3 w-3 shrink-0" />
+                  <span class="hidden xl:inline">Férié</span>
                 </button>
                 <button
                   type="button"
                   @click="row.day_type = 'vacation'"
                   :aria-pressed="row.day_type === 'vacation'"
+                  title="Vacances"
                   :class="[
-                    'flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase rounded-xl transition-all',
+                    'flex-1 flex items-center justify-center gap-1 px-1 py-1.5 text-[10px] font-semibold rounded-xl transition-all whitespace-nowrap',
                     row.day_type === 'vacation' ? 'bg-cyan-400 text-cyan-950' : 'text-text-muted hover:text-text-body'
                   ]"
                 >
-                  <Palmtree class="h-3 w-3" /> Vacances
+                  <Palmtree class="h-3 w-3 shrink-0" />
+                  <span class="hidden xl:inline">Vacances</span>
                 </button>
               </div>
 
