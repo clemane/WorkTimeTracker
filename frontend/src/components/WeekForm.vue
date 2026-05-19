@@ -271,6 +271,25 @@ const totalNetMinutes = computed(() => {
 
 const totalNetLabel = computed(() => minutesToHHMM(totalNetMinutes.value));
 
+const standardDayMinutes = computed(() => {
+  const [ah, am] = defaultArrival.value.split(":").map((x) => parseInt(x, 10));
+  const [dh, dm] = defaultDeparture.value.split(":").map((x) => parseInt(x, 10));
+  return (dh * 60 + dm) - (ah * 60 + am) - defaultBreak.value;
+});
+
+const vacationCount = computed(() => rows.value.filter((r) => r.day_type === "vacation").length);
+const holidayCount = computed(() => rows.value.filter((r) => r.day_type === "holiday").length);
+const prisSurVacancesMinutes = computed(() =>
+  rows.value
+    .filter((r) => r.day_type === "vacation")
+    .reduce((acc, r) => acc + Math.max(0, standardDayMinutes.value - (r.worked_minutes ?? 0)), 0)
+);
+const prisSurFeriesMinutes = computed(() =>
+  rows.value
+    .filter((r) => r.day_type === "holiday")
+    .reduce((acc, r) => acc + Math.max(0, standardDayMinutes.value - (r.worked_minutes ?? 0)), 0)
+);
+
 const saving = ref(false);
 const error = ref<string | null>(null);
 const success = ref(false);
@@ -457,12 +476,13 @@ const weeks = computed(() => {
     </div>
 
     <!-- Stats Summary -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <div v-for="stat in [
-        { label: 'Total Période', value: totalNetLabel, icon: Clock, color: 'text-primary' },
-        { label: 'Jours Actifs', value: rows.length + ' jours', icon: CheckCircle2, color: 'text-green-400' },
-        { label: 'Télétravail', value: minutesToHHMM(rows.reduce((acc, r) => acc + r.remote_minutes, 0)), icon: Home, color: 'text-amber-400' }
-      ]" :key="stat.label" class="bg-surface/50 border border-border p-6 rounded-3xl backdrop-blur-sm">
+        { label: 'Heures à payer', value: totalNetLabel, icon: Clock, color: 'text-primary', subline: '' },
+        { label: 'Pris sur vacances', value: minutesToHHMM(prisSurVacancesMinutes), icon: Palmtree, color: 'text-cyan-400', subline: vacationCount > 0 ? (vacationCount + ' jour' + (vacationCount > 1 ? 's' : '')) : 'aucun', hide: vacationCount === 0 && holidayCount === 0 },
+        { label: 'Pris sur fériés', value: minutesToHHMM(prisSurFeriesMinutes), icon: Sun, color: 'text-amber-400', subline: holidayCount > 0 ? (holidayCount + ' jour' + (holidayCount > 1 ? 's' : '')) : 'aucun', hide: vacationCount === 0 && holidayCount === 0 },
+        { label: 'Télétravail', value: minutesToHHMM(rows.reduce((acc, r) => acc + (r.day_type === 'normal' ? r.remote_minutes : 0), 0)), icon: Home, color: 'text-green-400', subline: '' }
+      ].filter(s => !s.hide)" :key="stat.label" class="bg-surface/50 border border-border p-6 rounded-3xl backdrop-blur-sm">
         <div class="flex items-center gap-4">
           <div :class="`p-3 rounded-2xl bg-canvas border border-border ${stat.color}`">
             <component :is="stat.icon" class="h-6 w-6" />
@@ -470,6 +490,7 @@ const weeks = computed(() => {
           <div>
             <p class="text-xs font-semibold uppercase tracking-widest text-text-muted">{{ stat.label }}</p>
             <p class="text-2xl font-bold mt-1 text-text-body">{{ stat.value }}</p>
+            <p v-if="stat.subline" class="text-[10px] text-text-muted mt-0.5">{{ stat.subline }}</p>
           </div>
         </div>
       </div>

@@ -222,9 +222,30 @@ router.get("/", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "userId requis" });
   }
 
-  // Fetch user details
-  const user = db.prepare("SELECT username FROM users WHERE id = ?").get(userIdNum) as { username: string } | undefined;
+  // Fetch user details (username + defaults pour calcul du jour standard)
+  const user = db
+    .prepare(
+      "SELECT username, default_arrival, default_departure, default_break_minutes FROM users WHERE id = ?"
+    )
+    .get(userIdNum) as
+    | {
+        username: string;
+        default_arrival: string | null;
+        default_departure: string | null;
+        default_break_minutes: number | null;
+      }
+    | undefined;
   const userName = user ? user.username : "Inconnu";
+
+  // Durée standard d'une journée de travail, dérivée du profil utilisateur
+  const standardDayMinutes = (() => {
+    const arrival = user?.default_arrival ?? "07:30";
+    const departure = user?.default_departure ?? "16:30";
+    const breakMin = user?.default_break_minutes ?? 60;
+    const [ah, am] = arrival.split(":").map((x) => parseInt(x, 10));
+    const [dh, dm] = departure.split(":").map((x) => parseInt(x, 10));
+    return (dh * 60 + dm) - (ah * 60 + am) - breakMin;
+  })();
 
   let from = monday;
   let to = "";
@@ -265,6 +286,18 @@ router.get("/", async (req: Request, res: Response) => {
     0
   );
 
+  // Décomposition vacances / fériés — partagée entre Excel et PDF
+  const holidaySessions = sessions.filter((s) => s.day_type === "holiday");
+  const vacationSessions = sessions.filter((s) => s.day_type === "vacation");
+  const holidayCount = holidaySessions.length;
+  const vacationCount = vacationSessions.length;
+  const prisSurVacances = vacationSessions.reduce((acc, s) => {
+    return acc + Math.max(0, standardDayMinutes - (s.worked_minutes ?? 0));
+  }, 0);
+  const prisSurFeries = holidaySessions.reduce((acc, s) => {
+    return acc + Math.max(0, standardDayMinutes - (s.worked_minutes ?? 0));
+  }, 0);
+
   // EXCEL GENERATION FOR SINGLE PERIOD
   if (format === "excel") {
     try {
@@ -299,11 +332,28 @@ router.get("/", async (req: Request, res: Response) => {
       });
 
       worksheet.addRow({});
-      const totalRow = worksheet.addRow({
-        date: 'TOTAL',
+      const payRow = worksheet.addRow({
+        date: 'HEURES À PAYER',
         net: minutesToHHMM(totalMinutes)
       });
-      totalRow.font = { bold: true };
+      payRow.font = { bold: true };
+
+      if (vacationCount > 0) {
+        const vacRow = worksheet.addRow({
+          date: 'PRIS SUR VACANCES',
+          net: minutesToHHMM(prisSurVacances),
+          notes: `${vacationCount} jour${vacationCount > 1 ? "s" : ""}`
+        });
+        vacRow.font = { bold: true };
+      }
+      if (holidayCount > 0) {
+        const holRow = worksheet.addRow({
+          date: 'PRIS SUR FÉRIÉS',
+          net: minutesToHHMM(prisSurFeries),
+          notes: `${holidayCount} jour${holidayCount > 1 ? "s" : ""}`
+        });
+        holRow.font = { bold: true };
+      }
 
       res.setHeader(
         "Content-Type",
@@ -324,15 +374,6 @@ router.get("/", async (req: Request, res: Response) => {
   // PDF GENERATION (Default)
   const inRange = (dateStr: string, start: string, end: string) =>
     dateStr >= start && dateStr <= end;
-
-  const holidayCount = sessions.filter((s) => s.day_type === "holiday").length;
-  const vacationCount = sessions.filter((s) => s.day_type === "vacation").length;
-  const counterParts: string[] = [];
-  if (holidayCount > 0) counterParts.push(`${holidayCount} jour${holidayCount > 1 ? "s" : ""} férié${holidayCount > 1 ? "s" : ""}`);
-  if (vacationCount > 0) counterParts.push(`${vacationCount} jour${vacationCount > 1 ? "s" : ""} de vacances`);
-  const countersLine = counterParts.length > 0
-    ? `<div class="counters">${counterParts.join(" · ")}</div>`
-    : "";
 
   // Génération dynamique des cartes de résumé par semaine
   let summaryHtml = "";
@@ -497,19 +538,50 @@ router.get("/", async (req: Request, res: Response) => {
           color: #6b7280;
           margin-top: 2px;
         }
+        .summary-card.pay {
+          background: #dcfce7;
+          border-color: #86efac;
+        }
+        .summary-card.vacation-pris {
+          background: #cffafe;
+          border-color: #67e8f9;
+        }
+        .summary-card.holiday-pris {
+          background: #fef3c7;
+          border-color: #fcd34d;
+        }
+        .totals-row {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 18px;
+          flex-wrap: wrap;
+        }
       </style>
     </head>
     <body>
       <h1>Rapport d'heures</h1>
       <div class="period">Salarié : ${userName}</div>
       <div class="period">Période : du ${formatHumanDate(from)} au ${formatHumanDate(to)}</div>
+      <div class="totals-row">
+        <div class="summary-card pay">
+          <div class="summary-title">Heures à payer</div>
+          <div class="summary-value">${minutesToHHMM(totalMinutes)}</div>
+        </div>
+        ${vacationCount > 0 ? `
+        <div class="summary-card vacation-pris">
+          <div class="summary-title">Pris sur vacances</div>
+          <div class="summary-value">${minutesToHHMM(prisSurVacances)}</div>
+          <div class="counters">${vacationCount} jour${vacationCount > 1 ? "s" : ""}</div>
+        </div>` : ""}
+        ${holidayCount > 0 ? `
+        <div class="summary-card holiday-pris">
+          <div class="summary-title">Pris sur fériés</div>
+          <div class="summary-value">${minutesToHHMM(prisSurFeries)}</div>
+          <div class="counters">${holidayCount} jour${holidayCount > 1 ? "s" : ""}</div>
+        </div>` : ""}
+      </div>
       <div class="summary">
         ${summaryHtml}
-        <div class="summary-card total">
-          <div class="summary-title">Total Période</div>
-          <div class="summary-value">${minutesToHHMM(totalMinutes)}</div>
-          ${countersLine}
-        </div>
       </div>
       <table>
         <thead>
