@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { WorkSession } from "../services/api";
+import type { WorkSession, DayType } from "../services/api";
 import { saveSessionsBulk, type SessionPayload } from "../services/api";
 import { computeNetMinutes, minutesToHHMM } from "../utils/time";
 import {
@@ -12,20 +12,22 @@ import {
   formatDayShort,
   getBiWeeklyStart,
 } from "../utils/week";
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Download, 
-  Save, 
-  Clock, 
-  Coffee, 
-  Home, 
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Save,
+  Clock,
+  Coffee,
+  Home,
   StickyNote,
   CheckCircle2,
   Calendar as CalendarIcon,
   LogOut,
   Loader2,
-  Mail
+  Mail,
+  Sun,
+  Palmtree
 } from "lucide-vue-next";
 import TimeInput from "./TimeInput.vue";
 
@@ -116,8 +118,17 @@ type DayRow = {
   break_minutes: number;
   remote_minutes: number;
   notes: string;
+  day_type: DayType;
+  worked_minutes: number;
   id?: number;
 };
+
+function computeRowNet(r: DayRow): number {
+  if (r.day_type === "holiday" || r.day_type === "vacation") {
+    return r.worked_minutes ?? 0;
+  }
+  return computeNetMinutes(r.arrival_time, r.departure_time, r.break_minutes, r.remote_minutes);
+}
 
 const sessionsByDate = computed(() => {
   const map: Record<string, WorkSession> = {};
@@ -139,6 +150,8 @@ function buildDefaultRow(date: string): DayRow {
       break_minutes: existing.break_minutes,
       remote_minutes: existing.remote_minutes ?? 0,
       notes: existing.notes ?? "",
+      day_type: existing.day_type ?? "normal",
+      worked_minutes: existing.worked_minutes ?? 0,
       id: existing.id,
     };
   }
@@ -149,6 +162,8 @@ function buildDefaultRow(date: string): DayRow {
     break_minutes: defaultBreak.value,
     remote_minutes: 0,
     notes: "",
+    day_type: "normal",
+    worked_minutes: 0,
   };
 }
 
@@ -177,7 +192,14 @@ function applyDraft(monday: string, current: DayRow[]): DayRow[] {
     return current.map((r) => {
       const draft = byDate.get(r.date);
       if (!draft) return r;
-      return { ...r, ...draft };
+      const merged: DayRow = { ...r, ...(draft as object) } as DayRow;
+      if (merged.day_type !== "normal" && merged.day_type !== "holiday" && merged.day_type !== "vacation") {
+        merged.day_type = "normal";
+      }
+      if (typeof merged.worked_minutes !== "number") {
+        merged.worked_minutes = 0;
+      }
+      return merged;
     });
   } catch {
     return current;
@@ -223,25 +245,17 @@ watch(
 const netByIndex = (i: number) => {
   const r = rows.value[i];
   if (!r) return "00:00";
-  return minutesToHHMM(computeNetMinutes(r.arrival_time, r.departure_time, r.break_minutes, r.remote_minutes));
+  return minutesToHHMM(computeRowNet(r));
 };
 
 const totalNetMinutes = computed(() => {
-  // We need to sum up ONLY the rows that are actually displayed (i.e. part of workingDays)
-  // rows contains ALL days of the period (Mon-Sun).
-  // But we only want to sum days that are in workingDays.
-  
   return rows.value.reduce((acc, r) => {
-    // We need to know the day of week for this row.
     const d = new Date(r.date + "T12:00:00");
-    // getDay() returns 0 for Sunday, 1 for Monday... 
-    // BUT our workingDays uses 0 for Monday, 6 for Sunday (based on getWeekDates order)
-    let dayIndex = d.getDay(); 
-    // Convert to 0=Mon, 6=Sun
+    let dayIndex = d.getDay();
     dayIndex = dayIndex === 0 ? 6 : dayIndex - 1;
-    
+
     if (workingDays.value.includes(dayIndex)) {
-        return acc + computeNetMinutes(r.arrival_time, r.departure_time, r.break_minutes, r.remote_minutes);
+        return acc + computeRowNet(r);
     }
     return acc;
   }, 0);
@@ -265,6 +279,8 @@ async function saveWeek() {
       break_minutes: r.break_minutes,
       remote_minutes: r.remote_minutes,
       notes: r.notes || undefined,
+      day_type: r.day_type,
+      worked_minutes: r.day_type === "normal" ? null : r.worked_minutes,
     }));
     await saveSessionsBulk(payloads);
     clearDraft(weekStart.value);
@@ -478,12 +494,45 @@ const weeks = computed(() => {
                   <p class="text-xs text-text-muted">{{ formatDayShort(row.date) }}</p>
                 </div>
                 <div class="text-right">
-                  <p class="text-lg font-black text-primary">{{ minutesToHHMM(computeNetMinutes(row.arrival_time, row.departure_time, row.break_minutes, row.remote_minutes)) }}</p>
+                  <p class="text-lg font-black text-primary">{{ minutesToHHMM(computeRowNet(row)) }}</p>
                   <p class="text-[10px] uppercase tracking-tighter text-text-muted font-bold">Net</p>
                 </div>
               </div>
 
-              <div class="space-y-4">
+              <div class="flex items-center gap-1 mb-4 bg-canvas border border-border rounded-2xl p-1">
+                <button
+                  type="button"
+                  @click="row.day_type = 'normal'"
+                  :class="[
+                    'flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase rounded-xl transition-all',
+                    row.day_type === 'normal' ? 'bg-primary text-primary-text' : 'text-text-muted hover:text-text-body'
+                  ]"
+                >
+                  Normal
+                </button>
+                <button
+                  type="button"
+                  @click="row.day_type = 'holiday'"
+                  :class="[
+                    'flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase rounded-xl transition-all',
+                    row.day_type === 'holiday' ? 'bg-amber-400 text-amber-950' : 'text-text-muted hover:text-text-body'
+                  ]"
+                >
+                  <Sun class="h-3 w-3" /> Férié
+                </button>
+                <button
+                  type="button"
+                  @click="row.day_type = 'vacation'"
+                  :class="[
+                    'flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase rounded-xl transition-all',
+                    row.day_type === 'vacation' ? 'bg-cyan-400 text-cyan-950' : 'text-text-muted hover:text-text-body'
+                  ]"
+                >
+                  <Palmtree class="h-3 w-3" /> Vacances
+                </button>
+              </div>
+
+              <div v-if="row.day_type === 'normal'" class="space-y-4">
                 <div class="grid grid-cols-2 gap-3">
                   <div class="space-y-1">
                     <label class="text-[10px] font-bold uppercase text-text-muted flex items-center gap-1">
@@ -518,6 +567,32 @@ const weeks = computed(() => {
                       <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-text-muted font-bold">m</span>
                     </div>
                   </div>
+                </div>
+
+                <div class="space-y-1">
+                  <label class="text-[10px] font-bold uppercase text-text-muted flex items-center gap-1">
+                    <StickyNote class="h-3 w-3" /> Notes
+                  </label>
+                  <input v-model="row.notes" type="text" placeholder="..." class="w-full bg-canvas border border-border rounded-xl px-3 py-2 text-xs outline-none focus:border-primary transition-all text-text-body placeholder:text-text-muted" />
+                </div>
+              </div>
+
+              <div v-else class="space-y-4">
+                <div class="flex items-center gap-2 px-3 py-2 rounded-2xl"
+                     :class="row.day_type === 'holiday' ? 'bg-amber-400/10 border border-amber-400/30 text-amber-300' : 'bg-cyan-400/10 border border-cyan-400/30 text-cyan-300'">
+                  <Sun v-if="row.day_type === 'holiday'" class="h-4 w-4" />
+                  <Palmtree v-else class="h-4 w-4" />
+                  <span class="text-xs font-bold uppercase tracking-wider">
+                    {{ row.day_type === 'holiday' ? 'Jour férié' : 'Jour de vacances' }}
+                  </span>
+                </div>
+
+                <div class="space-y-1">
+                  <label class="text-[10px] font-bold uppercase text-text-muted flex items-center gap-1">
+                    <Clock class="h-3 w-3" /> Heures travaillées
+                  </label>
+                  <TimeInput :model-value="minutesToHHMM(row.worked_minutes)" @update:model-value="(v: string) => { const [h,m] = v.split(':').map(x => parseInt(x,10)); row.worked_minutes = (isNaN(h)?0:h)*60 + (isNaN(m)?0:m); }" />
+                  <p class="text-[10px] text-text-muted">Laisser 00:00 si aucune heure travaillée.</p>
                 </div>
 
                 <div class="space-y-1">
